@@ -2,7 +2,7 @@
 
 # set which commands will be available
 .PHONY: up down build migrate shell superuser test logs dbeaver
-VENV_PYTHON = backend/.venv/bin/python
+VENV_PYTHON = backend/venv/bin/python
 
 # Start the whole stack
 up:
@@ -30,8 +30,8 @@ stop:
 migrate:
 # 	docker-compose exec backend python manage.py makemigrations
 # 	docker-compose exec backend python manage.py migrate
-	cd backend && . .venv/bin/activate && python manage.py makemigrations
-	cd backend && . .venv/bin/activate && python manage.py migrate
+	cd backend && . venv/bin/activate && python manage.py makemigrations
+	cd backend && . venv/bin/activate && python manage.py migrate
 
 # Make that Django superuser
 superuser:
@@ -52,7 +52,7 @@ db-check:
 # Start just the backend
 backend:
 	docker-compose up -d db
-	cd backend && . .venv/bin/activate && python manage.py runserver
+	cd backend && . venv/bin/activate && python manage.py runserver
 
 # Start just the frontend
 frontend:
@@ -61,7 +61,7 @@ frontend:
 # start both
 dev:
 	docker compose up -d db
-	(cd backend && . .venv/bin/activate && python manage.py runserver &)
+	(cd backend && . venv/bin/activate && python manage.py runserver &)
 	(cd frontend && npm run dev)
 
 clean-start:
@@ -70,11 +70,11 @@ clean-start:
 	-fuser -k 5173/tcp
 	docker-compose down
 # 	docker-compose up -d db
-# 	cd backend && . .venv/bin/activate && python manage.py runserver
+# 	cd backend && . venv/bin/activate && python manage.py runserver
 
 # broken test recipe. 
 # test:
-# 	cd backend && . .venv/bin/activate && python manage.py test
+# 	cd backend && . venv/bin/activate && python manage.py test
 #################################################################
 ###################### Experimental #############################
 ## Should be able to add whatever to my local with pip install ##
