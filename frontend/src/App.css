@@ -1,0 +1,112 @@
+.tp-main {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.tp-header {
+  text-align: left;
+  margin-bottom: 1.5rem;
+}
+
+.tp-header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 2rem;
+}
+
+.tp-header p {
+  margin: 0;
+  color: #666;
+}
+
+.tp-search {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.tp-search input {
+  flex: 1;
+  padding: 0.65rem 0.85rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.tp-search button {
+  padding: 0.65rem 1.25rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 6px;
+  background: #2563eb;
+  color: white;
+  cursor: pointer;
+}
+
+.tp-search button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tp-error {
+  color: #b91c1c;
+  background: #fef2f2;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+}
+
+.tp-empty {
+  color: #666;
+  font-style: italic;
+}
+
+.tp-results {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.tp-event {
+  padding: 1rem 1.25rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.tp-event h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+}
+
+.tp-meta {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  color: #555;
+  margin: 0 0 0.35rem;
+}
+
+.tp-category {
+  background: #eef2ff;
+  color: #3730a3;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.tp-address {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+.tp-description {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #333;
+  line-height: 1.4;
+}
