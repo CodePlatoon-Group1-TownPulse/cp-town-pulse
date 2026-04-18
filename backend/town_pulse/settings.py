@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -125,3 +126,11 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Seattle Socrata (data.seattle.gov) — civic events source.
+# Default dataset is "Special Events Permits" (dm95-f8w5). Override
+# SEATTLE_SOCRATA_DATASET_ID to point at a different dataset if needed.
+# SEATTLE_SOCRATA_APP_TOKEN is optional; unauthenticated requests are throttled.
+SEATTLE_SOCRATA_DOMAIN = os.environ.get('SEATTLE_SOCRATA_DOMAIN', 'data.seattle.gov')
+SEATTLE_SOCRATA_DATASET_ID = os.environ.get('SEATTLE_SOCRATA_DATASET_ID', 'dm95-f8w5')
+SEATTLE_SOCRATA_APP_TOKEN = os.environ.get('SEATTLE_SOCRATA_APP_TOKEN', '')
