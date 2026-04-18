@@ -128,9 +128,13 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Seattle Socrata (data.seattle.gov) — civic events source.
-# Default dataset is "Special Events Permits" (dm95-f8w5). Override
-# SEATTLE_SOCRATA_DATASET_ID to point at a different dataset if needed.
+# Default dataset is "Seattle Channel TV Schedule" (6853-bgsc), which is
+# actively maintained and carries council meetings, city briefings, and
+# community programming with upcoming dates. Override SEATTLE_SOCRATA_DATASET_ID
+# (and SEATTLE_SOCRATA_DATE_FIELD if the new dataset uses a different date
+# column) to point at a different dataset.
 # SEATTLE_SOCRATA_APP_TOKEN is optional; unauthenticated requests are throttled.
 SEATTLE_SOCRATA_DOMAIN = os.environ.get('SEATTLE_SOCRATA_DOMAIN', 'data.seattle.gov')
-SEATTLE_SOCRATA_DATASET_ID = os.environ.get('SEATTLE_SOCRATA_DATASET_ID', 'dm95-f8w5')
+SEATTLE_SOCRATA_DATASET_ID = os.environ.get('SEATTLE_SOCRATA_DATASET_ID', '6853-bgsc')
+SEATTLE_SOCRATA_DATE_FIELD = os.environ.get('SEATTLE_SOCRATA_DATE_FIELD', 'date')
 SEATTLE_SOCRATA_APP_TOKEN = os.environ.get('SEATTLE_SOCRATA_APP_TOKEN', '')
