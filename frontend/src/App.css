@@ -223,3 +223,52 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+.card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.delete-button {
+  background-color: #e53e3e;
+  color: white;
+}
+
+.delete-button:hover {
+  background-color: #c53030;
+}
+
+.event-notes {
+  margin-top: 10px;
+  padding: 8px;
+  background: #f7f7f7;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.event-notes-editor {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.event-notes-editor textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
+.note-actions {
+  display: flex;
+  gap: 8px;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

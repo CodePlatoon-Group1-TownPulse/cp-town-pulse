@@ -9,6 +9,8 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [area, setArea] = useState('seattle')
   const [monthIndex, setMonthIndex] = useState(8)
+  const [editingEventKey, setEditingEventKey] = useState(null)
+  const [editingNote, setEditingNote] = useState('')
 
   const months = [
     'January 2025',
@@ -77,6 +79,10 @@ function App() {
     setPage('dashboard')
   }
 
+  function getEventKey(event) {
+    return event.external_id || event.title
+  }
+
   async function loadEvents(selectedArea) {
     setLoading(true)
 
@@ -103,7 +109,7 @@ function App() {
     })
 
     if (!alreadySaved) {
-      const newSavedEvents = [...savedEvents, event]
+      const newSavedEvents = [...savedEvents, { ...event, notes: '' }]
       setSavedEvents(newSavedEvents)
       localStorage.setItem('tp_saved_events', JSON.stringify(newSavedEvents))
     }
@@ -119,6 +125,44 @@ function App() {
     if (monthIndex < months.length - 1) {
       setMonthIndex(monthIndex + 1)
     }
+  }
+
+  function deleteEvent(eventKey) {
+    const updated = savedEvents.filter((item) => getEventKey(item) !== eventKey)
+    setSavedEvents(updated)
+    if (editingEventKey === eventKey) {
+      setEditingEventKey(null)
+      setEditingNote('')
+    }
+  }
+
+  function startEditing(event) {
+    setEditingEventKey(getEventKey(event))
+    setEditingNote(event.notes || '')
+  }
+
+  function cancelEditing() {
+    setEditingEventKey(null)
+    setEditingNote('')
+  }
+
+  function saveNote(eventKey) {
+    const updated = savedEvents.map((item) =>
+      getEventKey(item) === eventKey ? { ...item, notes: editingNote } : item
+    )
+    setSavedEvents(updated)
+    setEditingEventKey(null)
+    setEditingNote('')
+  }
+
+  function isEventSaved(event) {
+    let saved = false
+    for (let i = 0; i < savedEvents.length; i++) {
+      if (getEventKey(savedEvents[i]) === getEventKey(event)) {
+        saved = true
+      }
+    }
+    return saved
   }
 
   return (
@@ -223,8 +267,8 @@ function App() {
                       <p>{event.date || 'No date'}</p>
                       {event.location_address && <p>{event.location_address}</p>}
                       {event.description && <p>{event.description}</p>}
-                      <button type="button" onClick={() => saveEvent(event)}>
-                        Save
+                      <button type="button" onClick={() => saveEvent(event)} disabled={isEventSaved(event)} >
+                        {isEventSaved(event) ? 'Saved' : 'Save'}
                       </button>
                     </div>
                   ))}
@@ -270,17 +314,66 @@ function App() {
           <div className="cards-grid">
             {savedEvents.length === 0 && <p>No saved events yet.</p>}
 
-            {savedEvents.map((event, index) => (
-              <div
-                key={event.external_id || `${event.title}-${index}`}
-                className="event-card"
-              >
-                <h2>{event.title || 'Untitled event'}</h2>
-                <p>{event.date || 'No date'}</p>
-                {event.location_address && <p>{event.location_address}</p>}
-                {event.description && <p>{event.description}</p>}
-              </div>
-            ))}
+            {savedEvents.map((event, index) => {
+              const eventKey = getEventKey(event)
+              const isEditing = editingEventKey === eventKey
+
+              return (
+                <div
+                  key={event.external_id || `${event.title}-${index}`}
+                  className="event-card"
+                >
+                  <h2>{event.title || 'Untitled event'}</h2>
+                  <p>{event.date || 'No date'}</p>
+                  {event.location_address && <p>{event.location_address}</p>}
+                  {event.description && <p>{event.description}</p>}
+
+                  {/* Notes display */}
+                  {!isEditing && event.notes && (
+                    <div className="event-notes">
+                      <strong>Notes:</strong>
+                      <p>{event.notes}</p>
+                    </div>
+                  )}
+
+                  {/* Edit notes form */}
+                  {isEditing && (
+                    <div className="event-notes-editor">
+                      <textarea
+                        value={editingNote}
+                        onChange={(e) => setEditingNote(e.target.value)}
+                        placeholder="Add your notes here..."
+                        rows={3}
+                      />
+                      <div className="note-actions">
+                        <button type="button" onClick={() => saveNote(eventKey)}>
+                          Save Note
+                        </button>
+                        <button type="button" onClick={cancelEditing}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Card action buttons */}
+                  {!isEditing && (
+                    <div className="card-actions">
+                      <button type="button" onClick={() => startEditing(event)}>
+                        {event.notes ? 'Edit Notes' : 'Add Notes'}
+                      </button>
+                      <button
+                        type="button"
+                        className="delete-button"
+                        onClick={() => deleteEvent(eventKey)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </main>
       )}
