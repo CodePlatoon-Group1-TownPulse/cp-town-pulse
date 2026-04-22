@@ -6,6 +6,13 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
 
+const CITY_LABELS = {
+  seattle: 'Seattle',
+  'king-county': 'King County',
+  bellevue: 'Bellevue',
+  redmond: 'Redmond',
+}
+
 function pad2(n) {
   return n < 10 ? `0${n}` : String(n)
 }
@@ -157,10 +164,6 @@ function App() {
     setSelectedDate((prev) => (prev === ymd ? null : ymd))
   }
 
-  function clearSelectedDate() {
-    setSelectedDate(null)
-  }
-
   function renderEventTitle(event) {
     const title = event.title || 'Untitled event'
     if (event.url) {
@@ -310,27 +313,23 @@ function App() {
           </section>
 
           <header className="page-header">
-            <h1>Local Events</h1>
-            <p>Pick an area to see current civic and community events.</p>
+            <h1>Events in {CITY_LABELS[area] || area}</h1>
+            <div className="area-bar">
+              <p>Pick an area to see current civic and community events.</p>
+              <select value={area} onChange={(e) => setArea(e.target.value)}>
+                <option value="seattle">Seattle</option>
+                <option value="king-county">King County</option>
+                <option value="bellevue">Bellevue</option>
+                <option value="redmond">Redmond</option>
+              </select>
+            </div>
           </header>
-
-          <div className="area-bar">
-            <select value={area} onChange={(e) => setArea(e.target.value)}>
-              <option value="seattle">Seattle</option>
-              <option value="king-county">King County</option>
-              <option value="bellevue">Bellevue</option>
-              <option value="redmond">Redmond</option>
-            </select>
-          </div>
 
           <div className="dashboard-layout">
             <div className="left-column">
               {selectedDate && (
                 <div className="filter-bar">
                   <span>Showing events on {selectedDateDisplay}</span>
-                  <button type="button" onClick={clearSelectedDate}>
-                    Clear date
-                  </button>
                 </div>
               )}
 

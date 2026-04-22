@@ -55,7 +55,7 @@ class SeattleEventSearchView(APIView):
         combined: list[dict] = []
 
         try:
-            combined.extend(search_events(query=query, limit=limit))
+            combined.extend(search_events(query=query, limit=limit, area=area, days_ahead=days_ahead))
         except SocrataError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
 
