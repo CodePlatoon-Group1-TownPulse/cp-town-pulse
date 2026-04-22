@@ -1,31 +1,47 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
+function pad2(n) {
+  return n < 10 ? `0${n}` : String(n)
+}
+
+function buildYmd(year, monthIdx, day) {
+  return `${year}-${pad2(monthIdx + 1)}-${pad2(day)}`
+}
+
+function toYmd(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return ''
+  return dateStr.slice(0, 10)
+}
+
+function formatDateMDY(value) {
+  const ymd = toYmd(value)
+  if (!ymd) return ''
+  const [y, m, d] = ymd.split('-')
+  if (!y || !m || !d) return ''
+  return `${m}/${d}/${y}`
+}
+
 function App() {
+  const today = new Date()
+  const todayYmd = buildYmd(today.getFullYear(), today.getMonth(), today.getDate())
+
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [page, setPage] = useState('signin')
   const [savedEvents, setSavedEvents] = useState([])
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [area, setArea] = useState('seattle')
-  const [monthIndex, setMonthIndex] = useState(8)
+  const [viewYear, setViewYear] = useState(today.getFullYear())
+  const [viewMonth, setViewMonth] = useState(today.getMonth())
+  const [selectedDate, setSelectedDate] = useState(todayYmd)
   const [editingEventKey, setEditingEventKey] = useState(null)
   const [editingNote, setEditingNote] = useState('')
-
-  const months = [
-    'January 2025',
-    'February 2025',
-    'March 2025',
-    'April 2025',
-    'May 2025',
-    'June 2025',
-    'July 2025',
-    'August 2025',
-    'September 2025',
-    'October 2025',
-    'November 2025',
-    'December 2025',
-  ]
 
   useEffect(() => {
     const loggedIn = localStorage.getItem('tp_logged_in')
@@ -88,7 +104,8 @@ function App() {
 
     try {
       const params = new URLSearchParams()
-      params.set('limit', '25')
+      params.set('limit', '500')
+      params.set('days_ahead', '60')
       params.set('area', selectedArea)
 
       const resp = await fetch(`/api/seattle-events/?${params.toString()}`)
@@ -116,16 +133,70 @@ function App() {
   }
 
   function prevMonth() {
-    if (monthIndex > 0) {
-      setMonthIndex(monthIndex - 1)
+    if (viewMonth === 0) {
+      setViewYear(viewYear - 1)
+      setViewMonth(11)
+    } else {
+      setViewMonth(viewMonth - 1)
     }
+    setSelectedDate(null)
   }
 
   function nextMonth() {
-    if (monthIndex < months.length - 1) {
-      setMonthIndex(monthIndex + 1)
+    if (viewMonth === 11) {
+      setViewYear(viewYear + 1)
+      setViewMonth(0)
+    } else {
+      setViewMonth(viewMonth + 1)
     }
+    setSelectedDate(null)
   }
+
+  function handleDayClick(day) {
+    const ymd = buildYmd(viewYear, viewMonth, day)
+    setSelectedDate((prev) => (prev === ymd ? null : ymd))
+  }
+
+  function clearSelectedDate() {
+    setSelectedDate(null)
+  }
+
+  function renderEventTitle(event) {
+    const title = event.title || 'Untitled event'
+    if (event.url) {
+      return (
+        <h2>
+          <a
+            href={event.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="event-title-link"
+          >
+            {title}
+          </a>
+        </h2>
+      )
+    }
+    return <h2>{title}</h2>
+  }
+
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
+  const firstWeekday = new Date(viewYear, viewMonth, 1).getDay()
+
+  const eventDates = useMemo(() => {
+    const set = new Set()
+    for (const ev of results) {
+      const ymd = toYmd(ev.date)
+      if (ymd) set.add(ymd)
+    }
+    return set
+  }, [results])
+
+  const filteredResults = selectedDate
+    ? results.filter((ev) => toYmd(ev.date) === selectedDate)
+    : []
+
+  const selectedDateDisplay = formatDateMDY(selectedDate)
 
   function deleteEvent(eventKey) {
     const updated = savedEvents.filter((item) => getEventKey(item) !== eventKey)
@@ -168,8 +239,6 @@ function App() {
   return (
     <div className="app">
       <nav className="nav">
-        <div className="nav-logo">Town Pulse</div>
-
         <div className="nav-right">
           {!isLoggedIn && page === 'signin' && (
             <button className="nav-button" onClick={goToSignUp}>
@@ -236,6 +305,10 @@ function App() {
 
       {isLoggedIn && page === 'dashboard' && (
         <main className="dashboard-page">
+          <section className="hero">
+            <img src="/HomePage.png" alt="Town Pulse" />
+          </section>
+
           <header className="page-header">
             <h1>Local Events</h1>
             <p>Pick an area to see current civic and community events.</p>
@@ -252,51 +325,100 @@ function App() {
 
           <div className="dashboard-layout">
             <div className="left-column">
-              <div className="cards-grid">
-                {loading && <p>Loading events...</p>}
+              {selectedDate && (
+                <div className="filter-bar">
+                  <span>Showing events on {selectedDateDisplay}</span>
+                  <button type="button" onClick={clearSelectedDate}>
+                    Clear date
+                  </button>
+                </div>
+              )}
 
-                {!loading && results.length === 0 && <p>No events found.</p>}
+              {loading && <p className="status-message">Loading events...</p>}
 
-                {!loading &&
-                  results.map((event, index) => (
+              {!loading && !selectedDate && (
+                <p className="status-message">
+                  Select a date on the calendar to see events.
+                </p>
+              )}
+
+              {!loading && selectedDate && filteredResults.length === 0 && (
+                <p className="status-message">
+                  No events on {selectedDateDisplay} in this area.
+                </p>
+              )}
+
+              {!loading && selectedDate && filteredResults.length > 0 && (
+                <div className="cards-grid">
+                  {filteredResults.map((event, index) => (
                     <div
                       key={event.external_id || `${event.title}-${index}`}
                       className="event-card"
                     >
-                      <h2>{event.title || 'Untitled event'}</h2>
-                      <p>{event.date || 'No date'}</p>
+                      {renderEventTitle(event)}
+                      <p>{formatDateMDY(event.date) || 'No date'}</p>
                       {event.location_address && <p>{event.location_address}</p>}
-                      {event.description && <p>{event.description}</p>}
-                      <button type="button" onClick={() => saveEvent(event)} disabled={isEventSaved(event)} >
+                      {event.description && <p className="event-description">{event.description}</p>}
+                      <button
+                        type="button"
+                        onClick={() => saveEvent(event)}
+                        disabled={isEventSaved(event)}
+                      >
                         {isEventSaved(event) ? 'Saved' : 'Save'}
                       </button>
                     </div>
                   ))}
-              </div>
+                </div>
+              )}
             </div>
 
             <div className="right-column">
               <div className="calendar-box">
                 <div className="calendar-top">
                   <button type="button" onClick={prevMonth}>{'<'}</button>
-                  <h3>{months[monthIndex]}</h3>
+                  <h3>{`${MONTH_NAMES[viewMonth]} ${viewYear}`}</h3>
                   <button type="button" onClick={nextMonth}>{'>'}</button>
                 </div>
 
                 <div className="calendar-days">
-                  <div>Sun</div>
-                  <div>Mon</div>
-                  <div>Tue</div>
-                  <div>Wed</div>
-                  <div>Thu</div>
-                  <div>Fri</div>
-                  <div>Sat</div>
+                  <div className="calendar-weekday">Sun</div>
+                  <div className="calendar-weekday">Mon</div>
+                  <div className="calendar-weekday">Tue</div>
+                  <div className="calendar-weekday">Wed</div>
+                  <div className="calendar-weekday">Thu</div>
+                  <div className="calendar-weekday">Fri</div>
+                  <div className="calendar-weekday">Sat</div>
 
-                  {Array.from({ length: 35 }).map((_, i) => (
-                    <div key={i} className="calendar-date">
-                      {i + 1 <= 30 ? i + 1 : ''}
-                    </div>
+                  {Array.from({ length: firstWeekday }).map((_, i) => (
+                    <div key={`blank-${i}`} className="calendar-date calendar-date-blank" />
                   ))}
+
+                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const day = i + 1
+                    const ymd = buildYmd(viewYear, viewMonth, day)
+                    const hasEvents = eventDates.has(ymd)
+                    const isSelected = selectedDate === ymd
+                    const isToday =
+                      day === today.getDate() &&
+                      viewMonth === today.getMonth() &&
+                      viewYear === today.getFullYear()
+
+                    const classes = ['calendar-date', 'calendar-date-button']
+                    if (hasEvents) classes.push('has-events')
+                    if (isSelected) classes.push('is-selected')
+                    if (isToday) classes.push('is-today')
+
+                    return (
+                      <button
+                        key={ymd}
+                        type="button"
+                        className={classes.join(' ')}
+                        onClick={() => handleDayClick(day)}
+                      >
+                        {day}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -323,10 +445,10 @@ function App() {
                   key={event.external_id || `${event.title}-${index}`}
                   className="event-card"
                 >
-                  <h2>{event.title || 'Untitled event'}</h2>
-                  <p>{event.date || 'No date'}</p>
+                  {renderEventTitle(event)}
+                  <p>{formatDateMDY(event.date) || 'No date'}</p>
                   {event.location_address && <p>{event.location_address}</p>}
-                  {event.description && <p>{event.description}</p>}
+                  {event.description && <p className="event-description">{event.description}</p>}
 
                   {/* Notes display */}
                   {!isEditing && event.notes && (

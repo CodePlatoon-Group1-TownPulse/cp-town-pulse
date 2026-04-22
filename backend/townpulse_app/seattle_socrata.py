@@ -56,6 +56,9 @@ def _normalize(row: dict) -> dict:
     if date and time_of_day and "T00:00:00" in date:
         date = f"{date[:10]}T{time_of_day}"
     external_id = row.get(":id") or row.get("msn") or row.get("permit_number") or row.get("id") or ""
+    url = row.get("url") or row.get("event_url") or row.get("link") or ""
+    if isinstance(url, dict):
+        url = url.get("url") or ""
     return {
         "external_id": str(external_id),
         "source_api": "seattle_socrata",
@@ -64,6 +67,7 @@ def _normalize(row: dict) -> dict:
         "description": description,
         "location_address": address,
         "date": date,
+        "url": url,
     }
 
 
