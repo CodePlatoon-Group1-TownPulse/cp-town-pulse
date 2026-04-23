@@ -1,91 +1,126 @@
 # cp-town-pulse Makefile
 
-# set which commands will be available
-.PHONY: up down build migrate shell superuser test logs dbeaver
-VENV_PYTHON = backend/.venv/bin/python
+.PHONY: help up down build stop migrate superuser shell logs db-check \
+        backend frontend dev clean-start freeze-local freeze-docker
 
-# Start the whole stack
+help: ## Show this help message
+		@echo "Town Pulse Development CLI"
+		@echo "--------------------------"
+		@$(usage)
+
+# Define the documentation here
+# \033[36m<command>\033[0m    Command help description\n
+define usage
+	@printf " \033[36mdev\033[0m           Run DB in Docker + Django/Vite locally\n\
+\033[36mclean-start\033[0m   Kill zombie ports and reset Docker\n\
+\033[36mstop\033[0m          Full shutdown (saves AWS/API costs)\n\
+\033[36mmigrate\033[0m       Sync Django database schema\n\
+\033[36mbuild\033[0m         Rebuild Docker containers\n\
+\033[36msuperuser\033[0m     Create superuser in Django\n\
+\033[36mshell\033[0m         Open Django shell\n\
+\033[36mbackend\033[0m       Start backend only\n\
+\033[36mfrontend\033[0m      Start frontend only\n\
+\033[36mlogs\033[0m          Start the docker logs\n\
+\033[36mdb-check\033[0m      Complete a db health check\n\
+\033[36mfreeze-local\033[0m  Pip freeze on local device\n\
+\033[36mfreeze-docker\033[0m Pip freeze on docker stack\n\
+\033[36mdestroy\033[0m       Destroy your hard drive, gfx card, and soul\n"
+endef
+
+
+# ── OS Detection ──────────────────────────────────────────────────────────────
+# Windows users: run make targets inside WSL or Git Bash.
+# The `dev` target uses bash job-control (&) and requires a Unix-like shell.
+UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
+
+ifeq ($(UNAME_S),Darwin)
+    KILL_8000    := lsof -ti :8000 | xargs kill -9 2>/dev/null || true
+    KILL_5173    := lsof -ti :5173 | xargs kill -9 2>/dev/null || true
+    VENV_PYTHON  := backend/venv/bin/python
+    VENV_ACTIVATE := . backend/venv/bin/activate
+else ifeq ($(UNAME_S),Windows)
+    $(warning Windows detected — run this Makefile inside WSL or Git Bash for full support.)
+    KILL_8000    := echo "Use WSL or Git Bash to kill port 8000 automatically"
+    KILL_5173    := echo "Use WSL or Git Bash to kill port 5173 automatically"
+    VENV_PYTHON  := backend/venv/Scripts/python
+    VENV_ACTIVATE := . backend/venv/Scripts/activate
+else
+    # Linux / WSL
+    KILL_8000    := fuser -k 8000/tcp 2>/dev/null || true
+    KILL_5173    := fuser -k 5173/tcp 2>/dev/null || true
+    VENV_PYTHON  := backend/venv/bin/python
+    VENV_ACTIVATE := . backend/venv/bin/activate
+endif
+
+# ── Docker Compose ────────────────────────────────────────────────────────────
+# Prefer Compose V2 plugin (`docker compose`); fall back to standalone V1.
+DOCKER_COMPOSE := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
+
+# ── Stack management ──────────────────────────────────────────────────────────
 up:
-	docker-compose up -d
+	$(DOCKER_COMPOSE) up -d
 
-# Stop the stack
 down:
-	docker-compose down
+	$(DOCKER_COMPOSE) down
 
-# Rebuild containers
 build:
-	docker-compose up -d --build
+	$(DOCKER_COMPOSE) up -d --build
 
 stop:
 	@echo "Stopping everything........."
-# 	kill django server:8000
-	-fuser -k 8000/tcp
-# 	kill vite:5173
-	-fuser -k 5173/tcp
-# 	stop the database
-	docker-compose down
-	@echo "Everything is off. No crazy API calls or AWS bills"
+	-$(KILL_8000)
+	-$(KILL_5173)
+	$(DOCKER_COMPOSE) down
+	@echo "Everything is off. No crazy API calls or AWS bills."
 
-# COmplete Django migrations
+clean-start:
+	-$(KILL_8000)
+	-$(KILL_5173)
+	$(DOCKER_COMPOSE) down
+
+# ── Django ────────────────────────────────────────────────────────────────────
 migrate:
-# 	docker-compose exec backend python manage.py makemigrations
-# 	docker-compose exec backend python manage.py migrate
-	cd backend && . .venv/bin/activate && python manage.py makemigrations
-	cd backend && . .venv/bin/activate && python manage.py migrate
+	cd backend && $(VENV_ACTIVATE) && python manage.py makemigrations
+	cd backend && $(VENV_ACTIVATE) && python manage.py migrate
 
-# Make that Django superuser
 superuser:
-	docker-compose exec backend python manage.py createsuperuser
+	$(DOCKER_COMPOSE) exec backend python manage.py createsuperuser
 
-# Add a way to get into the Django shell for testing
 shell:
-	docker-compose exec backend python manage.py shell
+	$(DOCKER_COMPOSE) exec backend python manage.py shell
 
-# Look at the logs
-logs:
-	docker-compose logs -f
-
-# Check DB using DBeaver
-db-check:
-	docker-compose exec db pg_isready -U admin -d townpulse_db
-
-# Start just the backend
+# ── Local dev servers ─────────────────────────────────────────────────────────
 backend:
-	docker-compose up -d db
-	cd backend && . .venv/bin/activate && python manage.py runserver
+	$(DOCKER_COMPOSE) up -d db
+	cd backend && $(VENV_ACTIVATE) && python manage.py runserver
 
-# Start just the frontend
 frontend:
 	cd frontend && npm run dev
 
-# start both
+# Runs DB in Docker; Django + Vite run locally in parallel.
+# Requires a Unix-like shell (bash/zsh/WSL) for job-control (&).
 dev:
-	docker compose up -d db
-	(cd backend && . .venv/bin/activate && python manage.py runserver &)
-	(cd frontend && npm run dev)
+	# Start DB
+	$(DOCKER_COMPOSE) up -d db
+	# Kill any existing local servers first to avoid port conflicts
+	-$(KILL_8000)
+	-$(KILL_5173)
+	# Run backend in background from the ROOT
+	$(VENV_ACTIVATE) && cd backend && python manage.py runserver &
+	# Run frontend in foreground
+	cd frontend && npm run dev
 
-clean-start:
-# 	docker-compose stop backend || true
-	-fuser -k 8000/tcp
-	-fuser -k 5173/tcp
-	docker-compose down
-# 	docker-compose up -d db
-# 	cd backend && . .venv/bin/activate && python manage.py runserver
+# ── Utilities ─────────────────────────────────────────────────────────────────
+logs:
+	$(DOCKER_COMPOSE) logs -f
 
-# broken test recipe. 
-# test:
-# 	cd backend && . .venv/bin/activate && python manage.py test
-#################################################################
-###################### Experimental #############################
-## Should be able to add whatever to my local with pip install ##
-## Freeze the local #############################################
-## run make build to rebuild with new packages ##################
-#################################################################
+db-check:
+	$(DOCKER_COMPOSE) exec db pg_isready -U admin -d townpulse_db
 
-# freeze backend/requirements.txt with the local venv
+# Freeze from local venv (use after `pip install` in the venv)
 freeze-local:
-	pip freeze > backend/requirements.txt
+	$(VENV_PYTHON) -m pip freeze > backend/requirements.txt
 
-# pull the reqs from the running container
+# Freeze from the running backend container
 freeze-docker:
-	docker-compose exec backend pip freeze > backend/requirements.txt
+	$(DOCKER_COMPOSE) exec backend pip freeze > backend/requirements.txt

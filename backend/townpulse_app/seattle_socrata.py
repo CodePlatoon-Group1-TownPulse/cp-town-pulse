@@ -5,8 +5,15 @@ https://dev.socrata.com/docs/queries/ to search civic event datasets.
 """
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 import requests
 from django.conf import settings
+
+# Socrata column name on the default dataset (6853-bgsc, Seattle Channel
+# TV Schedule). Override via SEATTLE_SOCRATA_DATE_FIELD if you point the
+# integration at a dataset that uses a different column.
+_DEFAULT_DATE_FIELD = "date"
 
 
 class SocrataError(Exception):
@@ -31,18 +38,27 @@ def _normalize(row: dict) -> dict:
     Field names vary by dataset. This tries the common columns used on
     data.seattle.gov event datasets and falls back to empty strings.
     """
-    title = row.get("event_name") or row.get("name_of_event") or row.get("name") or ""
-    description = row.get("event_description") or row.get("description") or ""
+    title = row.get("title") or row.get("event_name") or row.get("name_of_event") or row.get("name") or ""
+    description = row.get("notes") or row.get("event_description") or row.get("description") or ""
     category = row.get("event_category") or row.get("category") or row.get("type_of_event") or ""
-    address = (
+    address_val = (
         row.get("event_address")
         or row.get("event_location")
         or row.get("location")
         or row.get("address")
         or ""
     )
-    date = row.get("event_start_date") or row.get("start_date") or row.get("date") or ""
-    external_id = row.get(":id") or row.get("permit_number") or row.get("id") or ""
+    # Socrata "location" fields can be dicts ({type, coordinates}); stringify safely.
+    address = address_val if isinstance(address_val, str) else ""
+    date = row.get("date") or row.get("event_start_date") or row.get("start_date") or ""
+    # Append time-of-day if present (e.g. TV schedule has a separate time column).
+    time_of_day = row.get("time")
+    if date and time_of_day and "T00:00:00" in date:
+        date = f"{date[:10]}T{time_of_day}"
+    external_id = row.get(":id") or row.get("msn") or row.get("permit_number") or row.get("id") or ""
+    url = row.get("url") or row.get("event_url") or row.get("link") or ""
+    if isinstance(url, dict):
+        url = url.get("url") or ""
     return {
         "external_id": str(external_id),
         "source_api": "seattle_socrata",
@@ -51,18 +67,11 @@ def _normalize(row: dict) -> dict:
         "description": description,
         "location_address": address,
         "date": date,
+        "url": url,
     }
 
 
-def search_events(query: str | None = None, limit: int = 25) -> list[dict]:
-    """Search the configured Seattle dataset for events.
-
-    `query` does a case-insensitive full-text search via Socrata's `$q`.
-    """
-    params: dict[str, str | int] = {"$limit": max(1, min(int(limit), 1000))}
-    if query:
-        params["$q"] = query
-
+def _fetch(params: dict) -> list[dict]:
     try:
         resp = requests.get(_resource_url(), params=params, headers=_headers(), timeout=10)
         resp.raise_for_status()
@@ -72,4 +81,66 @@ def search_events(query: str | None = None, limit: int = 25) -> list[dict]:
     rows = resp.json()
     if not isinstance(rows, list):
         raise SocrataError("Unexpected Socrata response shape")
+    return rows
+
+
+# Maps our area slugs to a city name that is injected into Socrata's $q
+# full-text search. Seattle is the dataset's native city; no extra term needed.
+_AREA_SEARCH_TERMS: dict[str, str] = {
+    "king-county": "King County",
+    "bellevue": "Bellevue",
+    "redmond": "Redmond",
+}
+
+
+def search_events(
+    query: str | None = None,
+    limit: int = 25,
+    area: str | None = None,
+    days_ahead: int | None = None,
+) -> list[dict]:
+    """Search the configured Seattle dataset, preferring upcoming events.
+
+    Queries for events whose date is today or later, ordered soonest first.
+    If none match (e.g. the dataset hasn't been updated recently), falls
+    back to the most recent past events ordered newest first so the UI
+    still has something to show. `area` and `query` narrow results via
+    Socrata's `$q` full-text search. `days_ahead` adds an upper date bound.
+    """
+    date_field = getattr(settings, "SEATTLE_SOCRATA_DATE_FIELD", _DEFAULT_DATE_FIELD)
+    capped_limit = max(1, min(int(limit), 1000))
+    today = date.today()
+    today_iso = today.isoformat()
+
+    # Build $q from optional area city name + caller's query string.
+    q_parts = []
+    if area and area in _AREA_SEARCH_TERMS:
+        q_parts.append(_AREA_SEARCH_TERMS[area])
+    if query:
+        q_parts.append(query)
+    combined_q = " ".join(q_parts) or None
+
+    where_clause = f"{date_field} >= '{today_iso}T00:00:00'"
+    if days_ahead:
+        end_iso = (today + timedelta(days=int(days_ahead))).isoformat()
+        where_clause += f" AND {date_field} <= '{end_iso}T23:59:59'"
+
+    upcoming_params: dict[str, str | int] = {
+        "$limit": capped_limit,
+        "$where": where_clause,
+        "$order": f"{date_field} ASC",
+    }
+    if combined_q:
+        upcoming_params["$q"] = combined_q
+
+    rows = _fetch(upcoming_params)
+    if not rows:
+        fallback_params: dict[str, str | int] = {
+            "$limit": capped_limit,
+            "$order": f"{date_field} DESC",
+        }
+        if combined_q:
+            fallback_params["$q"] = combined_q
+        rows = _fetch(fallback_params)
+
     return [_normalize(row) for row in rows]

@@ -13,8 +13,14 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load .env from the repo root (one level up from backend/) so the same file
+# works for docker-compose `env_file:` and for running manage.py locally.
+load_dotenv(BASE_DIR.parent / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -128,9 +134,19 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Seattle Socrata (data.seattle.gov) — civic events source.
-# Default dataset is "Special Events Permits" (dm95-f8w5). Override
-# SEATTLE_SOCRATA_DATASET_ID to point at a different dataset if needed.
+# Default dataset is "Seattle Channel TV Schedule" (6853-bgsc), which is
+# actively maintained and carries council meetings, city briefings, and
+# community programming with upcoming dates. Override SEATTLE_SOCRATA_DATASET_ID
+# (and SEATTLE_SOCRATA_DATE_FIELD if the new dataset uses a different date
+# column) to point at a different dataset.
 # SEATTLE_SOCRATA_APP_TOKEN is optional; unauthenticated requests are throttled.
 SEATTLE_SOCRATA_DOMAIN = os.environ.get('SEATTLE_SOCRATA_DOMAIN', 'data.seattle.gov')
-SEATTLE_SOCRATA_DATASET_ID = os.environ.get('SEATTLE_SOCRATA_DATASET_ID', 'dm95-f8w5')
+SEATTLE_SOCRATA_DATASET_ID = os.environ.get('SEATTLE_SOCRATA_DATASET_ID', '6853-bgsc')
+SEATTLE_SOCRATA_DATE_FIELD = os.environ.get('SEATTLE_SOCRATA_DATE_FIELD', 'date')
 SEATTLE_SOCRATA_APP_TOKEN = os.environ.get('SEATTLE_SOCRATA_APP_TOKEN', '')
+
+# Ticketmaster Discovery API — supplements the Socrata dataset with ticketed
+# concerts/sports/arts events. Get a key at https://developer.ticketmaster.com/.
+# If the key is blank, the Ticketmaster client returns no rows and the
+# Socrata-only behavior is preserved.
+TICKETMASTER_API_KEY = os.environ.get('TICKETMASTER_API_KEY', '')
