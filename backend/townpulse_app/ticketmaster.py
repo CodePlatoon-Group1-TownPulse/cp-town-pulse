@@ -17,7 +17,7 @@ _AREA_PARAMS: dict[str, dict[str, str]] = {
     "seattle": {"city": "Seattle", "stateCode": "WA"},
     "bellevue": {"city": "Bellevue", "stateCode": "WA"},
     "redmond": {"city": "Redmond", "stateCode": "WA"},
-    "king-county": {"stateCode": "WA", "dmaId": "819"},
+    "king-county": {"stateCode": "WA", "dmaId": "385"},
 }
 
 

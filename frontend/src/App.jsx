@@ -1,44 +1,47 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"
-import { Container, Typography, Box, Divider, ThemeProvider, createTheme, CssBaseline } from "@mui/material"
-import { useState, useMemo, useEffect } from 'react'
-
-import Signup from "./pages/Signup"
-import Login from "./pages/Login"
-import Navbar from "./components/Navbar"
-import Dashboard from "./pages/Dashboard"
-import SavedEvents from "./pages/SavedEvents"
-
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 
-export default function App() {
-  // Theme state
-  const [mode, setMode] = useState('light')
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
 
-  // them != theme
-  const theme = useMemo(() => createTheme({
-    palette: {
-      mode,
-      primary: {
-        main: '#1976d2', // color is "Professional Blue"
-      },
-      secondary: {
-        main: '#dc004e', // color is red
-      },
-      background: {
-        default: mode === 'light' ? '#f5f5f5' : '#121212',
-      }
-    },
-    shape: {
-      borderRadius: 8, 
-    }
-  }), [mode])
+function pad2(n) {
+  return n < 10 ? `0${n}` : String(n)
+}
 
-  const toggleColorMode = () => setMode((prev) => (prev === 'light' ? 'dark' : 'light'))
+function buildYmd(year, monthIdx, day) {
+  return `${year}-${pad2(monthIdx + 1)}-${pad2(day)}`
+}
 
-  // end Theme State
+function toYmd(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return ''
+  return dateStr.slice(0, 10)
+}
 
-  // Town Pulse Global Logic
+function formatDateMDY(value) {
+  const ymd = toYmd(value)
+  if (!ymd) return ''
+  const [y, m, d] = ymd.split('-')
+  if (!y || !m || !d) return ''
+  return `${m}/${d}/${y}`
+}
+
+function App() {
+  const today = new Date()
+  const todayYmd = buildYmd(today.getFullYear(), today.getMonth(), today.getDate())
+
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [page, setPage] = useState('signin')
   const [savedEvents, setSavedEvents] = useState([])
+  const [results, setResults] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [area, setArea] = useState('seattle')
+  const [viewYear, setViewYear] = useState(today.getFullYear())
+  const [viewMonth, setViewMonth] = useState(today.getMonth())
+  const [selectedDate, setSelectedDate] = useState(todayYmd)
+  const [editingEventKey, setEditingEventKey] = useState(null)
+  const [editingNote, setEditingNote] = useState('')
 
   useEffect(() => {
     const stored = localStorage.getItem('tp_saved_events')
@@ -56,45 +59,444 @@ export default function App() {
     localStorage.setItem('tp_saved_events', JSON.stringify(savedEvents))
   }, [savedEvents])
 
+  useEffect(() => {
+    if (isLoggedIn && page === 'dashboard') {
+      loadEvents(area)
+    }
+  }, [isLoggedIn, page, area])
+
+  function handleLogin() {
+    setIsLoggedIn(true)
+    setPage('dashboard')
+    localStorage.setItem('tp_logged_in', 'true')
+  }
+
+  function handleLogout() {
+    setIsLoggedIn(false)
+    setPage('signin')
+    localStorage.removeItem('tp_logged_in')
+  }
+
+  function goToSignUp() {
+    setPage('signup')
+  }
+
+  function goToSignIn() {
+    setPage('signin')
+  }
+
+  function goToSaved() {
+    setPage('saved')
+  }
+
+  function goToDashboard() {
+    setPage('dashboard')
+  }
+
+  function getEventKey(event) {
+    return event.external_id || event.title
+  }
+
+  async function loadEvents(selectedArea) {
+    setLoading(true)
+
+    try {
+      const params = new URLSearchParams()
+      params.set('limit', '500')
+      params.set('days_ahead', '60')
+      params.set('area', selectedArea)
+
+      const resp = await fetch(`/api/seattle-events/?${params.toString()}`)
+      const data = await resp.json()
+      setResults(data.results || [])
+    } catch (error) {
+      console.log('Load events error:', error)
+      setResults([])
+    }
+
+    setLoading(false)
+  }
+
+  function saveEvent(event) {
+    const eventKey = event.external_id || event.title
+    const alreadySaved = savedEvents.find((item) => {
+      return (item.external_id || item.title) === eventKey
+    })
+
+    if (!alreadySaved) {
+      const newSavedEvents = [...savedEvents, { ...event, notes: '' }]
+      setSavedEvents(newSavedEvents)
+      localStorage.setItem('tp_saved_events', JSON.stringify(newSavedEvents))
+    }
+  }
+
+  function prevMonth() {
+    if (viewMonth === 0) {
+      setViewYear(viewYear - 1)
+      setViewMonth(11)
+    } else {
+      setViewMonth(viewMonth - 1)
+    }
+    setSelectedDate(null)
+  }
+
+  function nextMonth() {
+    if (viewMonth === 11) {
+      setViewYear(viewYear + 1)
+      setViewMonth(0)
+    } else {
+      setViewMonth(viewMonth + 1)
+    }
+    setSelectedDate(null)
+  }
+
+  function handleDayClick(day) {
+    const ymd = buildYmd(viewYear, viewMonth, day)
+    setSelectedDate((prev) => (prev === ymd ? null : ymd))
+  }
+
+  function clearSelectedDate() {
+    setSelectedDate(null)
+  }
+
+  function renderEventTitle(event) {
+    const title = event.title || 'Untitled event'
+    if (event.url) {
+      return (
+        <h2>
+          <a
+            href={event.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="event-title-link"
+          >
+            {title}
+          </a>
+        </h2>
+      )
+    }
+    return <h2>{title}</h2>
+  }
+
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
+  const firstWeekday = new Date(viewYear, viewMonth, 1).getDay()
+
+  const eventDates = useMemo(() => {
+    const set = new Set()
+    for (const ev of results) {
+      const ymd = toYmd(ev.date)
+      if (ymd) set.add(ymd)
+    }
+    return set
+  }, [results])
+
+  const filteredResults = selectedDate
+    ? results.filter((ev) => toYmd(ev.date) === selectedDate)
+    : []
+
+  const selectedDateDisplay = formatDateMDY(selectedDate)
+
+  function deleteEvent(eventKey) {
+    const updated = savedEvents.filter((item) => getEventKey(item) !== eventKey)
+    setSavedEvents(updated)
+    if (editingEventKey === eventKey) {
+      setEditingEventKey(null)
+      setEditingNote('')
+    }
+  }
+
+  function startEditing(event) {
+    setEditingEventKey(getEventKey(event))
+    setEditingNote(event.notes || '')
+  }
+
+  function cancelEditing() {
+    setEditingEventKey(null)
+    setEditingNote('')
+  }
+
+  function saveNote(eventKey) {
+    const updated = savedEvents.map((item) =>
+      getEventKey(item) === eventKey ? { ...item, notes: editingNote } : item
+    )
+    setSavedEvents(updated)
+    setEditingEventKey(null)
+    setEditingNote('')
+  }
+
+  function isEventSaved(event) {
+    let saved = false
+    for (let i = 0; i < savedEvents.length; i++) {
+      if (getEventKey(savedEvents[i]) === getEventKey(event)) {
+        saved = true
+      }
+    }
+    return saved
+  }
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Router>
-        <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
-          
-          <Navbar mode={mode} toggleColorMode={toggleColorMode} />
+    <div className="app">
+      <nav className="nav">
+        <div className="nav-right">
+          {!isLoggedIn && page === 'signin' && (
+            <button className="nav-button" onClick={goToSignUp}>
+              Sign Up
+            </button>
+          )}
 
-          <Container maxWidth="lg" sx={{ mt: 4, mb: 4, flexGrow: 1 }}>
-            <Routes>
-              {/* Main Feed */}
-              <Route 
-                path="/" 
-                element={<Dashboard savedEvents={savedEvents} setSavedEvents={setSavedEvents} />} 
-              />
+          {!isLoggedIn && page === 'signup' && (
+            <button className="nav-button" onClick={goToSignIn}>
+              Sign In
+            </button>
+          )}
 
-              {/* Saved Items */}
-              <Route 
-                path="/saved" 
-                element={<SavedEvents savedEvents={savedEvents} setSavedEvents={setSavedEvents} />} 
-              />
+          {isLoggedIn && (
+            <>
+              <button className="nav-button" onClick={goToDashboard}>
+                Home
+              </button>
+              <button className="nav-button" onClick={goToSaved}>
+                Saved
+              </button>
+              <button className="nav-button signout-button" onClick={handleLogout}>
+                Sign Out
+              </button>
+            </>
+          )}
+        </div>
+      </nav>
 
-              {/* Auth */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<Signup />} />
+      {!isLoggedIn && page === 'signin' && (
+        <main className="auth-page">
+          <div className="auth-card">
+            <h1>Sign In</h1>
+            <p>Sign in to see local civic events and save the ones you want.</p>
 
-              <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
-          </Container>
+            <form className="auth-form">
+              <input type="email" placeholder="Email" />
+              <input type="password" placeholder="Password" />
+              <button type="button" onClick={handleLogin}>
+                Sign In
+              </button>
+            </form>
+          </div>
+        </main>
+      )}
 
-          <Divider />
-          <Box component="footer" sx={{ py: 3, textAlign: 'center', bgcolor: 'background.paper' }}>
-            <Box sx={{ typography: 'caption', color: 'text.secondary' }}>
-              Town Pulse • {new Date().getFullYear()}
-            </Box>
-          </Box>
-        </Box>
-      </Router>
-    </ThemeProvider>
+      {!isLoggedIn && page === 'signup' && (
+        <main className="auth-page">
+          <div className="auth-card">
+            <h1>Sign Up</h1>
+            <p>Create an account to save events and keep track of city happenings.</p>
+
+            <form className="auth-form">
+              <input type="text" placeholder="Name" />
+              <input type="email" placeholder="Email" />
+              <input type="password" placeholder="Password" />
+              <button type="button" onClick={handleLogin}>
+                Create Account
+              </button>
+            </form>
+          </div>
+        </main>
+      )}
+
+      {isLoggedIn && page === 'dashboard' && (
+        <main className="dashboard-page">
+          <section className="hero">
+            <img src="/HomePage.png" alt="Town Pulse" />
+          </section>
+
+          <header className="page-header">
+            <h1>Local Events</h1>
+            <p>Pick an area to see current civic and community events.</p>
+          </header>
+
+          <div className="area-bar">
+            <select value={area} onChange={(e) => setArea(e.target.value)}>
+              <option value="seattle">Seattle</option>
+              <option value="king-county">King County</option>
+              <option value="bellevue">Bellevue</option>
+              <option value="redmond">Redmond</option>
+            </select>
+          </div>
+
+          <div className="dashboard-layout">
+            <div className="left-column">
+              {selectedDate && (
+                <div className="filter-bar">
+                  <span>Showing events on {selectedDateDisplay}</span>
+                  <button type="button" onClick={clearSelectedDate}>
+                    Clear date
+                  </button>
+                </div>
+              )}
+
+              {loading && <p className="status-message">Loading events...</p>}
+
+              {!loading && !selectedDate && (
+                <p className="status-message">
+                  Select a date on the calendar to see events.
+                </p>
+              )}
+
+              {!loading && selectedDate && filteredResults.length === 0 && (
+                <p className="status-message">
+                  No events on {selectedDateDisplay} in this area.
+                </p>
+              )}
+
+              {!loading && selectedDate && filteredResults.length > 0 && (
+                <div className="cards-grid">
+                  {filteredResults.map((event, index) => (
+                    <div
+                      key={event.external_id || `${event.title}-${index}`}
+                      className="event-card"
+                    >
+                      {renderEventTitle(event)}
+                      <p>{formatDateMDY(event.date) || 'No date'}</p>
+                      {event.location_address && <p>{event.location_address}</p>}
+                      {event.description && <p className="event-description">{event.description}</p>}
+                      <button
+                        type="button"
+                        onClick={() => saveEvent(event)}
+                        disabled={isEventSaved(event)}
+                      >
+                        {isEventSaved(event) ? 'Saved' : 'Save'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="right-column">
+              <div className="calendar-box">
+                <div className="calendar-top">
+                  <button type="button" onClick={prevMonth}>{'<'}</button>
+                  <h3>{`${MONTH_NAMES[viewMonth]} ${viewYear}`}</h3>
+                  <button type="button" onClick={nextMonth}>{'>'}</button>
+                </div>
+
+                <div className="calendar-days">
+                  <div className="calendar-weekday">Sun</div>
+                  <div className="calendar-weekday">Mon</div>
+                  <div className="calendar-weekday">Tue</div>
+                  <div className="calendar-weekday">Wed</div>
+                  <div className="calendar-weekday">Thu</div>
+                  <div className="calendar-weekday">Fri</div>
+                  <div className="calendar-weekday">Sat</div>
+
+                  {Array.from({ length: firstWeekday }).map((_, i) => (
+                    <div key={`blank-${i}`} className="calendar-date calendar-date-blank" />
+                  ))}
+
+                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const day = i + 1
+                    const ymd = buildYmd(viewYear, viewMonth, day)
+                    const hasEvents = eventDates.has(ymd)
+                    const isSelected = selectedDate === ymd
+                    const isToday =
+                      day === today.getDate() &&
+                      viewMonth === today.getMonth() &&
+                      viewYear === today.getFullYear()
+
+                    const classes = ['calendar-date', 'calendar-date-button']
+                    if (hasEvents) classes.push('has-events')
+                    if (isSelected) classes.push('is-selected')
+                    if (isToday) classes.push('is-today')
+
+                    return (
+                      <button
+                        key={ymd}
+                        type="button"
+                        className={classes.join(' ')}
+                        onClick={() => handleDayClick(day)}
+                      >
+                        {day}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      )}
+
+      {isLoggedIn && page === 'saved' && (
+        <main className="dashboard-page">
+          <header className="page-header">
+            <h1>Saved Events</h1>
+            <p>These are the events you saved.</p>
+          </header>
+
+          <div className="cards-grid">
+            {savedEvents.length === 0 && <p>No saved events yet.</p>}
+
+            {savedEvents.map((event, index) => {
+              const eventKey = getEventKey(event)
+              const isEditing = editingEventKey === eventKey
+
+              return (
+                <div
+                  key={event.external_id || `${event.title}-${index}`}
+                  className="event-card"
+                >
+                  {renderEventTitle(event)}
+                  <p>{formatDateMDY(event.date) || 'No date'}</p>
+                  {event.location_address && <p>{event.location_address}</p>}
+                  {event.description && <p className="event-description">{event.description}</p>}
+
+                  {/* Notes display */}
+                  {!isEditing && event.notes && (
+                    <div className="event-notes">
+                      <strong>Notes:</strong>
+                      <p>{event.notes}</p>
+                    </div>
+                  )}
+
+                  {/* Edit notes form */}
+                  {isEditing && (
+                    <div className="event-notes-editor">
+                      <textarea
+                        value={editingNote}
+                        onChange={(e) => setEditingNote(e.target.value)}
+                        placeholder="Add your notes here..."
+                        rows={3}
+                      />
+                      <div className="note-actions">
+                        <button type="button" onClick={() => saveNote(eventKey)}>
+                          Save Note
+                        </button>
+                        <button type="button" onClick={cancelEditing}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Card action buttons */}
+                  {!isEditing && (
+                    <div className="card-actions">
+                      <button type="button" onClick={() => startEditing(event)}>
+                        {event.notes ? 'Edit Notes' : 'Add Notes'}
+                      </button>
+                      <button
+                        type="button"
+                        className="delete-button"
+                        onClick={() => deleteEvent(eventKey)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </main>
+      )}
+    </div>
   )
 }

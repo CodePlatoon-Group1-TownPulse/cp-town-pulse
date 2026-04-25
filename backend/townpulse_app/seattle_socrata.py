@@ -5,7 +5,7 @@ https://dev.socrata.com/docs/queries/ to search civic event datasets.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 import requests
 from django.conf import settings
@@ -84,26 +84,54 @@ def _fetch(params: dict) -> list[dict]:
     return rows
 
 
-def search_events(query: str | None = None, limit: int = 25) -> list[dict]:
+# Maps our area slugs to a city name that is injected into Socrata's $q
+# full-text search. Seattle is the dataset's native city; no extra term needed.
+_AREA_SEARCH_TERMS: dict[str, str] = {
+    "king-county": "King County",
+    "bellevue": "Bellevue",
+    "redmond": "Redmond",
+}
+
+
+def search_events(
+    query: str | None = None,
+    limit: int = 25,
+    area: str | None = None,
+    days_ahead: int | None = None,
+) -> list[dict]:
     """Search the configured Seattle dataset, preferring upcoming events.
 
     Queries for events whose date is today or later, ordered soonest first.
     If none match (e.g. the dataset hasn't been updated recently), falls
     back to the most recent past events ordered newest first so the UI
-    still has something to show. `query` does a case-insensitive full-text
-    search via Socrata's `$q`.
+    still has something to show. `area` and `query` narrow results via
+    Socrata's `$q` full-text search. `days_ahead` adds an upper date bound.
     """
     date_field = getattr(settings, "SEATTLE_SOCRATA_DATE_FIELD", _DEFAULT_DATE_FIELD)
     capped_limit = max(1, min(int(limit), 1000))
-    today_iso = date.today().isoformat()
+    today = date.today()
+    today_iso = today.isoformat()
+
+    # Build $q from optional area city name + caller's query string.
+    q_parts = []
+    if area and area in _AREA_SEARCH_TERMS:
+        q_parts.append(_AREA_SEARCH_TERMS[area])
+    if query:
+        q_parts.append(query)
+    combined_q = " ".join(q_parts) or None
+
+    where_clause = f"{date_field} >= '{today_iso}T00:00:00'"
+    if days_ahead:
+        end_iso = (today + timedelta(days=int(days_ahead))).isoformat()
+        where_clause += f" AND {date_field} <= '{end_iso}T23:59:59'"
 
     upcoming_params: dict[str, str | int] = {
         "$limit": capped_limit,
-        "$where": f"{date_field} >= '{today_iso}T00:00:00'",
+        "$where": where_clause,
         "$order": f"{date_field} ASC",
     }
-    if query:
-        upcoming_params["$q"] = query
+    if combined_q:
+        upcoming_params["$q"] = combined_q
 
     rows = _fetch(upcoming_params)
     if not rows:
@@ -111,8 +139,8 @@ def search_events(query: str | None = None, limit: int = 25) -> list[dict]:
             "$limit": capped_limit,
             "$order": f"{date_field} DESC",
         }
-        if query:
-            fallback_params["$q"] = query
+        if combined_q:
+            fallback_params["$q"] = combined_q
         rows = _fetch(fallback_params)
 
     return [_normalize(row) for row in rows]
