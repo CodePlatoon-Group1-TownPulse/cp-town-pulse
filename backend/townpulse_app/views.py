@@ -65,6 +65,26 @@ class SeattleEventSearchView(APIView):
             # Ticketmaster is a supplement; if it fails we still return Socrata.
             pass
 
-        combined.sort(key=lambda ev: ev.get('date') or '')
+        seen_ids: set[str] = set()
+        seen_title_day: set[tuple[str, str]] = set()
+        unique: list[dict] = []
+        for ev in combined:
+            ext_id = ev.get('external_id') or ''
+            title = (ev.get('title') or '').strip().lower()
+            day = (ev.get('date') or '')[:10]
+            title_day = (title, day)
 
-        return Response({'count': len(combined), 'results': combined})
+            if ext_id and ext_id in seen_ids:
+                continue
+            if title and day and title_day in seen_title_day:
+                continue
+
+            if ext_id:
+                seen_ids.add(ext_id)
+            if title and day:
+                seen_title_day.add(title_day)
+            unique.append(ev)
+
+        unique.sort(key=lambda ev: ev.get('date') or '')
+
+        return Response({'count': len(unique), 'results': unique})
