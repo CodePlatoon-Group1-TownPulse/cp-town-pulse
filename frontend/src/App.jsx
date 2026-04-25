@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 
 const MONTH_NAMES = [
@@ -50,6 +50,14 @@ function App() {
   const [editingEventKey, setEditingEventKey] = useState(null)
   const [editingNote, setEditingNote] = useState('')
 
+  const [googleClientId, setGoogleClientId] = useState('')
+  const [authError, setAuthError] = useState('')
+  const [authSubmitting, setAuthSubmitting] = useState(false)
+  const [formUsername, setFormUsername] = useState('')
+  const [formPassword, setFormPassword] = useState('')
+  const [formName, setFormName] = useState('')
+  const googleButtonRef = useRef(null)
+
   useEffect(() => {
     const loggedIn = localStorage.getItem('tp_logged_in')
     const storedSavedEvents = localStorage.getItem('tp_saved_events')
@@ -74,6 +82,39 @@ function App() {
     }
   }, [isLoggedIn, page, area])
 
+  useEffect(() => {
+    fetch('/api/auth/google/config/')
+      .then((r) => r.json())
+      .then((data) => setGoogleClientId(data.client_id || ''))
+      .catch(() => setGoogleClientId(''))
+  }, [])
+
+  useEffect(() => {
+    if (isLoggedIn || !googleClientId || !googleButtonRef.current) return
+    let cancelled = false
+    const interval = setInterval(() => {
+      if (cancelled) return
+      if (!window.google?.accounts?.id) return
+      clearInterval(interval)
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: handleGoogleCredential,
+      })
+      if (googleButtonRef.current) {
+        googleButtonRef.current.innerHTML = ''
+        window.google.accounts.id.renderButton(googleButtonRef.current, {
+          theme: 'outline',
+          size: 'large',
+          width: 280,
+        })
+      }
+    }, 100)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [isLoggedIn, googleClientId, page])
+
   function handleLogin() {
     setIsLoggedIn(true)
     setPage('dashboard')
@@ -84,14 +125,103 @@ function App() {
     setIsLoggedIn(false)
     setPage('signin')
     localStorage.removeItem('tp_logged_in')
+    setAuthError('')
+    if (window.google?.accounts?.id) {
+      window.google.accounts.id.disableAutoSelect()
+    }
+  }
+
+  async function handleGoogleCredential(response) {
+    setAuthError('')
+    try {
+      const resp = await fetch('/api/auth/google/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: response.credential }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        setAuthError(data.detail || 'Sign-in failed.')
+        return
+      }
+      handleLogin()
+    } catch (err) {
+      setAuthError('Network error. Try again.')
+    }
+  }
+
+  function resetAuthForm() {
+    setFormUsername('')
+    setFormPassword('')
+    setFormName('')
+    setAuthError('')
   }
 
   function goToSignUp() {
+    resetAuthForm()
     setPage('signup')
   }
 
   function goToSignIn() {
+    resetAuthForm()
     setPage('signin')
+  }
+
+  async function handleSignup(e) {
+    e.preventDefault()
+    setAuthError('')
+    setAuthSubmitting(true)
+    try {
+      const resp = await fetch('/api/auth/signup/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: formUsername,
+          password: formPassword,
+          name: formName,
+        }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        setAuthError(data.detail || 'Could not create account.')
+        setAuthSubmitting(false)
+        return
+      }
+      resetAuthForm()
+      setAuthSubmitting(false)
+      handleLogin()
+    } catch (err) {
+      setAuthError('Network error. Try again.')
+      setAuthSubmitting(false)
+    }
+  }
+
+  async function handleSigninSubmit(e) {
+    e.preventDefault()
+    setAuthError('')
+    setAuthSubmitting(true)
+    try {
+      const resp = await fetch('/api/auth/signin/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: formUsername,
+          password: formPassword,
+        }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        setAuthError(data.detail || 'Sign-in failed.')
+        setAuthSubmitting(false)
+        return
+      }
+      resetAuthForm()
+      setAuthSubmitting(false)
+      handleLogin()
+    } catch (err) {
+      setAuthError('Network error. Try again.')
+      setAuthSubmitting(false)
+    }
   }
 
   function goToSaved() {
@@ -161,7 +291,7 @@ function App() {
 
   function handleDayClick(day) {
     const ymd = buildYmd(viewYear, viewMonth, day)
-    setSelectedDate((prev) => (prev === ymd ? null : ymd))
+    setSelectedDate(ymd)
   }
 
   function renderEventTitle(event) {
@@ -195,9 +325,10 @@ function App() {
     return set
   }, [results])
 
-  const filteredResults = selectedDate
-    ? results.filter((ev) => toYmd(ev.date) === selectedDate)
-    : []
+  const filteredResults = useMemo(() => {
+    if (!selectedDate) return []
+    return results.filter((ev) => toYmd(ev.date) === selectedDate)
+  }, [results, selectedDate])
 
   const selectedDateDisplay = formatDateMDY(selectedDate)
 
@@ -277,13 +408,37 @@ function App() {
             <h1>Sign In</h1>
             <p>Sign in to see local civic events and save the ones you want.</p>
 
-            <form className="auth-form">
-              <input type="email" placeholder="Email" />
-              <input type="password" placeholder="Password" />
-              <button type="button" onClick={handleLogin}>
-                Sign In
+            <form className="auth-form" onSubmit={handleSigninSubmit}>
+              <input
+                type="text"
+                placeholder="Username"
+                autoComplete="username"
+                required
+                value={formUsername}
+                onChange={(e) => setFormUsername(e.target.value)}
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                autoComplete="current-password"
+                required
+                value={formPassword}
+                onChange={(e) => setFormPassword(e.target.value)}
+              />
+              {authError && <p className="auth-error">{authError}</p>}
+              <button type="submit" disabled={authSubmitting}>
+                {authSubmitting ? 'Signing in...' : 'Sign In'}
               </button>
             </form>
+
+            <div className="auth-divider"><span>or</span></div>
+
+            {!googleClientId && (
+              <p className="auth-error">
+                Google sign-in is not configured. Set GOOGLE_CLIENT_ID in the server .env file.
+              </p>
+            )}
+            <div ref={googleButtonRef} className="google-button-slot" />
           </div>
         </main>
       )}
@@ -294,14 +449,44 @@ function App() {
             <h1>Sign Up</h1>
             <p>Create an account to save events and keep track of city happenings.</p>
 
-            <form className="auth-form">
-              <input type="text" placeholder="Name" />
-              <input type="email" placeholder="Email" />
-              <input type="password" placeholder="Password" />
-              <button type="button" onClick={handleLogin}>
-                Create Account
+            <form className="auth-form" onSubmit={handleSignup}>
+              <input
+                type="text"
+                placeholder="Name (optional)"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+              />
+              <input
+                type="text"
+                placeholder="Username"
+                autoComplete="username"
+                required
+                value={formUsername}
+                onChange={(e) => setFormUsername(e.target.value)}
+              />
+              <input
+                type="password"
+                placeholder="Password (min 8 characters)"
+                autoComplete="new-password"
+                required
+                minLength={8}
+                value={formPassword}
+                onChange={(e) => setFormPassword(e.target.value)}
+              />
+              {authError && <p className="auth-error">{authError}</p>}
+              <button type="submit" disabled={authSubmitting}>
+                {authSubmitting ? 'Creating account...' : 'Create Account'}
               </button>
             </form>
+
+            <div className="auth-divider"><span>or</span></div>
+
+            {!googleClientId && (
+              <p className="auth-error">
+                Google sign-in is not configured. Set GOOGLE_CLIENT_ID in the server .env file.
+              </p>
+            )}
+            <div ref={googleButtonRef} className="google-button-slot" />
           </div>
         </main>
       )}
