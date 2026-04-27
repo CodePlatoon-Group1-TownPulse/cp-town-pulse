@@ -1,38 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
+import { buildYmd, toYmd, formatDateMDY } from './utils/date'
+import { MONTH_NAMES, CITY_LABELS } from './constants'
+import NavBar from './components/NavBar'
+import EventCard from './components/EventCard'
 
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-]
 
-const CITY_LABELS = {
-  seattle: 'Seattle',
-  'king-county': 'King County',
-  bellevue: 'Bellevue',
-  redmond: 'Redmond',
-}
 
-function pad2(n) {
-  return n < 10 ? `0${n}` : String(n)
-}
 
-function buildYmd(year, monthIdx, day) {
-  return `${year}-${pad2(monthIdx + 1)}-${pad2(day)}`
-}
-
-function toYmd(dateStr) {
-  if (!dateStr || typeof dateStr !== 'string') return ''
-  return dateStr.slice(0, 10)
-}
-
-function formatDateMDY(value) {
-  const ymd = toYmd(value)
-  if (!ymd) return ''
-  const [y, m, d] = ymd.split('-')
-  if (!y || !m || !d) return ''
-  return `${m}/${d}/${y}`
-}
 
 function App() {
   const today = new Date()
@@ -294,25 +269,6 @@ function App() {
     setSelectedDate(ymd)
   }
 
-  function renderEventTitle(event) {
-    const title = event.title || 'Untitled event'
-    if (event.url) {
-      return (
-        <h2>
-          <a
-            href={event.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="event-title-link"
-          >
-            {title}
-          </a>
-        </h2>
-      )
-    }
-    return <h2>{title}</h2>
-  }
-
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
   const firstWeekday = new Date(viewYear, viewMonth, 1).getDay()
 
@@ -372,35 +328,15 @@ function App() {
 
   return (
     <div className="app">
-      <nav className="nav">
-        <div className="nav-right">
-          {!isLoggedIn && page === 'signin' && (
-            <button className="nav-button" onClick={goToSignUp}>
-              Sign Up
-            </button>
-          )}
-
-          {!isLoggedIn && page === 'signup' && (
-            <button className="nav-button" onClick={goToSignIn}>
-              Sign In
-            </button>
-          )}
-
-          {isLoggedIn && (
-            <>
-              <button className="nav-button" onClick={goToDashboard}>
-                Home
-              </button>
-              <button className="nav-button" onClick={goToSaved}>
-                Saved
-              </button>
-              <button className="nav-button signout-button" onClick={handleLogout}>
-                Sign Out
-              </button>
-            </>
-          )}
-        </div>
-      </nav>
+      <NavBar
+        isLoggedIn={isLoggedIn}
+        page={page}
+        onSignUp={goToSignUp}
+        onSignIn={goToSignIn}
+        onHome={goToDashboard}
+        onSaved={goToSaved}
+        onSignOut={handleLogout}
+      />
 
       {!isLoggedIn && page === 'signin' && (
         <main className="auth-page">
@@ -535,14 +471,10 @@ function App() {
               {!loading && selectedDate && filteredResults.length > 0 && (
                 <div className="cards-grid">
                   {filteredResults.map((event, index) => (
-                    <div
+                    <EventCard
                       key={event.external_id || `${event.title}-${index}`}
-                      className="event-card"
+                      event={event}
                     >
-                      {renderEventTitle(event)}
-                      <p>{formatDateMDY(event.date) || 'No date'}</p>
-                      {event.location_address && <p>{event.location_address}</p>}
-                      {event.description && <p className="event-description">{event.description}</p>}
                       <button
                         type="button"
                         onClick={() => saveEvent(event)}
@@ -550,7 +482,7 @@ function App() {
                       >
                         {isEventSaved(event) ? 'Saved' : 'Save'}
                       </button>
-                    </div>
+                    </EventCard>
                   ))}
                 </div>
               )}
@@ -625,16 +557,10 @@ function App() {
               const isEditing = editingEventKey === eventKey
 
               return (
-                <div
+                <EventCard
                   key={event.external_id || `${event.title}-${index}`}
-                  className="event-card"
+                  event={event}
                 >
-                  {renderEventTitle(event)}
-                  <p>{formatDateMDY(event.date) || 'No date'}</p>
-                  {event.location_address && <p>{event.location_address}</p>}
-                  {event.description && <p className="event-description">{event.description}</p>}
-
-                  {/* Notes display */}
                   {!isEditing && event.notes && (
                     <div className="event-notes">
                       <strong>Notes:</strong>
@@ -642,7 +568,6 @@ function App() {
                     </div>
                   )}
 
-                  {/* Edit notes form */}
                   {isEditing && (
                     <div className="event-notes-editor">
                       <textarea
@@ -662,7 +587,6 @@ function App() {
                     </div>
                   )}
 
-                  {/* Card action buttons */}
                   {!isEditing && (
                     <div className="card-actions">
                       <button type="button" onClick={() => startEditing(event)}>
@@ -677,12 +601,13 @@ function App() {
                       </button>
                     </div>
                   )}
-                </div>
+                </EventCard>
               )
             })}
           </div>
         </main>
-      )}
+      )
+      }
     </div>
   )
 }

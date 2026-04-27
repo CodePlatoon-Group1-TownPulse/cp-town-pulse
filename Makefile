@@ -49,7 +49,7 @@ else
     KILL_8000    := fuser -k 8000/tcp 2>/dev/null || true
     KILL_5173    := fuser -k 5173/tcp 2>/dev/null || true
     VENV_PYTHON  := backend/venv/bin/python
-    VENV_ACTIVATE := . backend/venv/bin/activate
+    VENV_ACTIVATE := . venv/bin/activate
 endif
 
 # ── Docker Compose ────────────────────────────────────────────────────────────
@@ -80,7 +80,7 @@ clean-start:
 
 # ── Django ────────────────────────────────────────────────────────────────────
 migrate:
-	cd backend && $(VENV_ACTIVATE) && python manage.py makemigrations
+	cd backend && $(VENV_ACTIVATE) && python manage.py makemigrations 
 	cd backend && $(VENV_ACTIVATE) && python manage.py migrate
 
 superuser:
@@ -106,7 +106,7 @@ dev:
 	-$(KILL_8000)
 	-$(KILL_5173)
 	# Run backend in background from the ROOT
-	$(VENV_ACTIVATE) && cd backend && python manage.py runserver &
+	(cd backend && . venv/bin/activate && python3 manage.py runserver) &
 	# Run frontend in foreground
 	cd frontend && npm run dev
 
@@ -115,7 +115,7 @@ logs:
 	$(DOCKER_COMPOSE) logs -f
 
 db-check:
-	$(DOCKER_COMPOSE) exec db pg_isready -U admin -d townpulse_db
+	$(DOCKER_COMPOSE) exec db pg_isready -U $${DB_USER:-postgres} -d townpulse_db
 
 # Freeze from local venv (use after `pip install` in the venv)
 freeze-local:
