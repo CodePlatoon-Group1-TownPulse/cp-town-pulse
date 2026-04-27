@@ -80,7 +80,7 @@ clean-start:
 
 # ── Django ────────────────────────────────────────────────────────────────────
 migrate:
-	cd backend && $(VENV_ACTIVATE) && python manage.py makemigrations
+	cd backend && $(VENV_ACTIVATE) && python manage.py makemigrations 
 	cd backend && $(VENV_ACTIVATE) && python manage.py migrate
 
 superuser:
@@ -115,7 +115,7 @@ logs:
 	$(DOCKER_COMPOSE) logs -f
 
 db-check:
-	$(DOCKER_COMPOSE) exec db pg_isready -U admin -d townpulse_db
+	$(DOCKER_COMPOSE) exec db pg_isready -U $${DB_USER:-postgres} -d townpulse_db
 
 # Freeze from local venv (use after `pip install` in the venv)
 freeze-local:
