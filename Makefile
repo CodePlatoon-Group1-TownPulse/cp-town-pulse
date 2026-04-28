@@ -92,6 +92,7 @@ shell:
 # ── Local dev servers ─────────────────────────────────────────────────────────
 backend:
 	$(DOCKER_COMPOSE) up -d db
+	cd backend && $(VENV_ACTIVATE) && pip install -r requirements.txt
 	cd backend && $(VENV_ACTIVATE) && python manage.py runserver
 
 frontend:
@@ -105,8 +106,10 @@ dev:
 	# Kill any existing local servers first to avoid port conflicts
 	-$(KILL_8000)
 	-$(KILL_5173)
+	# start the venv
+	cd backend && $(VENV_ACTIVATE)
 	# Run backend in background from the ROOT
-	(cd backend && . venv/bin/activate && python3 manage.py runserver) &
+	(cd backend && . venv/bin/activate && pip install -r requirements.txt && python3 manage.py runserver) &
 	# Run frontend in foreground
 	cd frontend && npm run dev
 
