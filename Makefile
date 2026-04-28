@@ -37,7 +37,7 @@ ifeq ($(UNAME_S),Darwin)
     KILL_8000    := lsof -ti :8000 | xargs kill -9 2>/dev/null || true
     KILL_5173    := lsof -ti :5173 | xargs kill -9 2>/dev/null || true
     VENV_PYTHON  := backend/venv/bin/python
-    VENV_ACTIVATE := . backend/venv/bin/activate
+    VENV_ACTIVATE := . venv/bin/activate
 else ifeq ($(UNAME_S),Windows)
     $(warning Windows detected — run this Makefile inside WSL or Git Bash for full support.)
     KILL_8000    := echo "Use WSL or Git Bash to kill port 8000 automatically"
