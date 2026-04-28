@@ -448,6 +448,110 @@ body {
   gap: 8px;
 }
 
+.beanie-page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 30px 20px 60px;
+}
+
+.beanie-back {
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 16px;
+}
+
+.beanie-hero {
+  text-align: center;
+  background: linear-gradient(135deg, #fde68a, #fca5a5);
+  border-radius: 14px;
+  padding: 40px 24px;
+  margin-bottom: 28px;
+}
+
+.beanie-hero h1 {
+  margin: 0 0 10px;
+  font-size: 2rem;
+  color: #7c2d12;
+}
+
+.beanie-hero p {
+  margin: 0 auto;
+  max-width: 540px;
+  color: #7c2d12;
+}
+
+.beanie-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 36px;
+}
+
+.beanie-card {
+  background: white;
+  border: 1px solid #f3d6c1;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.beanie-card h3 {
+  margin: 0 0 4px;
+  color: #7c2d12;
+}
+
+.beanie-tag {
+  display: inline-block;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+}
+
+.beanie-donate {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.beanie-donate h2 {
+  margin-top: 0;
+}
+
+.beanie-amount {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 220px;
+  margin: 16px 0;
+  font-size: 0.9rem;
+}
+
+.beanie-amount input {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.beanie-paypal {
+  margin-top: 8px;
+  min-height: 50px;
+}
+
+.beanie-status {
+  margin-top: 12px;
+  color: #047857;
+  font-weight: 600;
+}
+
 button:disabled {
   opacity: 0.5;
   cursor: default;

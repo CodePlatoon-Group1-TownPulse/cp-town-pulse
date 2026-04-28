@@ -4,6 +4,7 @@ import { buildYmd, toYmd, formatDateMDY } from './utils/date'
 import { MONTH_NAMES, CITY_LABELS } from './constants'
 import NavBar from './components/NavBar'
 import EventCard from './components/EventCard'
+import BeanieBabies from './components/BeanieBabies'
 
 
 
@@ -430,7 +431,12 @@ function App() {
       {isLoggedIn && page === 'dashboard' && (
         <main className="dashboard-page">
           <section className="hero">
-            <img src="/HomePage.png" alt="Town Pulse" />
+            <img
+              src="/HomePage.png"
+              alt="Town Pulse"
+              onClick={() => setPage('beanies')}
+              style={{ cursor: 'pointer' }}
+            />
           </section>
 
           <header className="page-header">
@@ -540,6 +546,10 @@ function App() {
             </div>
           </div>
         </main>
+      )}
+
+      {page === 'beanies' && (
+        <BeanieBabies onBack={() => setPage(isLoggedIn ? 'dashboard' : 'signin')} />
       )}
 
       {isLoggedIn && page === 'saved' && (
