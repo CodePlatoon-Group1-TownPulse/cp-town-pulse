@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { buildYmd, toYmd, formatDateMDY } from './utils/date'
 import { MONTH_NAMES, CITY_LABELS } from './constants'
+import { ThemeProvider, createTheme, CssBaseline } from '@mui/material'
 import NavBar from './components/NavBar'
 import EventCard from './components/EventCard'
 
@@ -32,6 +33,22 @@ function App() {
   const [formPassword, setFormPassword] = useState('')
   const [formName, setFormName] = useState('')
   const googleButtonRef = useRef(null)
+
+  const [mode, setMode] = useState('light')
+
+  const toggleColorMode = () => {
+    setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'))
+  }
+
+  const theme = useMemo(
+    () =>
+      createTheme({
+        palette: {
+          mode,
+        },
+      }),
+    [mode],
+  )
 
   useEffect(() => {
     const loggedIn = localStorage.getItem('tp_logged_in')
@@ -327,16 +344,20 @@ function App() {
   }
 
   return (
-    <div className="app">
-      <NavBar
-        isLoggedIn={isLoggedIn}
-        page={page}
-        onSignUp={goToSignUp}
-        onSignIn={goToSignIn}
-        onHome={goToDashboard}
-        onSaved={goToSaved}
-        onSignOut={handleLogout}
-      />
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <div className="app">
+        <NavBar
+          isLoggedIn={isLoggedIn}
+          page={page}
+          onSignUp={goToSignUp}
+          onSignIn={goToSignIn}
+          onHome={goToDashboard}
+          onSaved={goToSaved}
+          onSignOut={handleLogout}
+          mode={mode}
+          toggleColorMode={toggleColorMode}
+        />
 
       {!isLoggedIn && page === 'signin' && (
         <main className="auth-page">
@@ -609,6 +630,7 @@ function App() {
       )
       }
     </div>
+    </ThemeProvider>
   )
 }
 
