@@ -1,7 +1,6 @@
 body {
   margin: 0;
   font-family: Arial, sans-serif;
-  background: #f5f7fb;
 }
 
 .app {
@@ -451,4 +450,63 @@ body {
 button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* Dark Mode Overrides */
+
+.app.dark .auth-card,
+.app.dark .event-card,
+.app.dark .calendar-box,
+.app.dark .status-message,
+.app.dark .filter-bar,
+.app.dark .area-bar select {
+  background-color: #1e1e1e;
+  border-color: #333;
+  color: #fff;
+}
+
+.app.dark .auth-card p,
+.app.dark .page-header p,
+.app.dark .event-card p,
+.app.dark .calendar-weekday {
+  color: #ccc;
+}
+
+.app.dark .calendar-days div,
+.app.dark .calendar-date-button {
+  background: #2d2d2d;
+  color: #fff;
+}
+
+.app.dark .calendar-date-button.has-events {
+  background: #1e3a8a;
+  color: #93c5fd;
+}
+
+.app.dark .calendar-date-button.has-events::after {
+  background: #93c5fd;
+}
+
+.app.dark .calendar-date-button.is-selected {
+  background: #2563eb;
+  color: white;
+}
+
+.app.dark .auth-form input,
+.app.dark .event-notes-editor textarea {
+  background: #2d2d2d;
+  color: #fff;
+  border-color: #555;
+}
+
+.app.dark .event-notes {
+  background: #2d2d2d;
+}
+
+.app.dark .hero {
+  background: #1e1e1e;
+}
+
+.app.dark .event-title-link {
+  color: #90caf9;
 }

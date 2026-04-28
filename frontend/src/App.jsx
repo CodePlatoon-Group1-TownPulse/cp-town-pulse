@@ -5,6 +5,10 @@ import { MONTH_NAMES, CITY_LABELS } from './constants'
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material'
 import NavBar from './components/NavBar'
 import EventCard from './components/EventCard'
+import EventModal from './components/EventModal'
+import Calendar from './components/Calendar'
+import AuthPage from './components/AuthPage'
+import SavedEvents from './components/SavedEvents'
 
 
 
@@ -25,6 +29,7 @@ function App() {
   const [selectedDate, setSelectedDate] = useState(todayYmd)
   const [editingEventKey, setEditingEventKey] = useState(null)
   const [editingNote, setEditingNote] = useState('')
+  const [selectedEventForModal, setSelectedEventForModal] = useState(null)
 
   const [googleClientId, setGoogleClientId] = useState('')
   const [authError, setAuthError] = useState('')
@@ -286,18 +291,6 @@ function App() {
     setSelectedDate(ymd)
   }
 
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
-  const firstWeekday = new Date(viewYear, viewMonth, 1).getDay()
-
-  const eventDates = useMemo(() => {
-    const set = new Set()
-    for (const ev of results) {
-      const ymd = toYmd(ev.date)
-      if (ymd) set.add(ymd)
-    }
-    return set
-  }, [results])
-
   const filteredResults = useMemo(() => {
     if (!selectedDate) return []
     return results.filter((ev) => toYmd(ev.date) === selectedDate)
@@ -346,7 +339,7 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <div className="app">
+      <div className={`app ${mode}`}>
         <NavBar
           isLoggedIn={isLoggedIn}
           page={page}
@@ -359,93 +352,22 @@ function App() {
           toggleColorMode={toggleColorMode}
         />
 
-      {!isLoggedIn && page === 'signin' && (
-        <main className="auth-page">
-          <div className="auth-card">
-            <h1>Sign In</h1>
-            <p>Sign in to see local civic events and save the ones you want.</p>
-
-            <form className="auth-form" onSubmit={handleSigninSubmit}>
-              <input
-                type="text"
-                placeholder="Username"
-                autoComplete="username"
-                required
-                value={formUsername}
-                onChange={(e) => setFormUsername(e.target.value)}
-              />
-              <input
-                type="password"
-                placeholder="Password"
-                autoComplete="current-password"
-                required
-                value={formPassword}
-                onChange={(e) => setFormPassword(e.target.value)}
-              />
-              {authError && <p className="auth-error">{authError}</p>}
-              <button type="submit" disabled={authSubmitting}>
-                {authSubmitting ? 'Signing in...' : 'Sign In'}
-              </button>
-            </form>
-
-            <div className="auth-divider"><span>or</span></div>
-
-            {!googleClientId && (
-              <p className="auth-error">
-                Google sign-in is not configured. Set GOOGLE_CLIENT_ID in the server .env file.
-              </p>
-            )}
-            <div ref={googleButtonRef} className="google-button-slot" />
-          </div>
-        </main>
-      )}
-
-      {!isLoggedIn && page === 'signup' && (
-        <main className="auth-page">
-          <div className="auth-card">
-            <h1>Sign Up</h1>
-            <p>Create an account to save events and keep track of city happenings.</p>
-
-            <form className="auth-form" onSubmit={handleSignup}>
-              <input
-                type="text"
-                placeholder="Name (optional)"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-              />
-              <input
-                type="text"
-                placeholder="Username"
-                autoComplete="username"
-                required
-                value={formUsername}
-                onChange={(e) => setFormUsername(e.target.value)}
-              />
-              <input
-                type="password"
-                placeholder="Password (min 8 characters)"
-                autoComplete="new-password"
-                required
-                minLength={8}
-                value={formPassword}
-                onChange={(e) => setFormPassword(e.target.value)}
-              />
-              {authError && <p className="auth-error">{authError}</p>}
-              <button type="submit" disabled={authSubmitting}>
-                {authSubmitting ? 'Creating account...' : 'Create Account'}
-              </button>
-            </form>
-
-            <div className="auth-divider"><span>or</span></div>
-
-            {!googleClientId && (
-              <p className="auth-error">
-                Google sign-in is not configured. Set GOOGLE_CLIENT_ID in the server .env file.
-              </p>
-            )}
-            <div ref={googleButtonRef} className="google-button-slot" />
-          </div>
-        </main>
+      {!isLoggedIn && (page === 'signin' || page === 'signup') && (
+        <AuthPage
+            mode={page}
+            handleSigninSubmit={handleSigninSubmit}
+            handleSignup={handleSignup}
+            formUsername={formUsername}
+            setFormUsername={setFormUsername}
+            formPassword={formPassword}
+            setFormPassword={setFormPassword}
+            formName={formName}
+            setFormName={setFormName}
+            authError={authError}
+            authSubmitting={authSubmitting}
+            googleClientId={googleClientId}
+            googleButtonRef={googleButtonRef}
+        />
       )}
 
       {isLoggedIn && page === 'dashboard' && (
@@ -495,10 +417,14 @@ function App() {
                     <EventCard
                       key={event.external_id || `${event.title}-${index}`}
                       event={event}
+                      onClick={() => setSelectedEventForModal(event)}
                     >
                       <button
                         type="button"
-                        onClick={() => saveEvent(event)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          saveEvent(event)
+                        }}
                         disabled={isEventSaved(event)}
                       >
                         {isEventSaved(event) ? 'Saved' : 'Save'}
@@ -510,125 +436,40 @@ function App() {
             </div>
 
             <div className="right-column">
-              <div className="calendar-box">
-                <div className="calendar-top">
-                  <button type="button" onClick={prevMonth}>{'<'}</button>
-                  <h3>{`${MONTH_NAMES[viewMonth]} ${viewYear}`}</h3>
-                  <button type="button" onClick={nextMonth}>{'>'}</button>
-                </div>
-
-                <div className="calendar-days">
-                  <div className="calendar-weekday">Sun</div>
-                  <div className="calendar-weekday">Mon</div>
-                  <div className="calendar-weekday">Tue</div>
-                  <div className="calendar-weekday">Wed</div>
-                  <div className="calendar-weekday">Thu</div>
-                  <div className="calendar-weekday">Fri</div>
-                  <div className="calendar-weekday">Sat</div>
-
-                  {Array.from({ length: firstWeekday }).map((_, i) => (
-                    <div key={`blank-${i}`} className="calendar-date calendar-date-blank" />
-                  ))}
-
-                  {Array.from({ length: daysInMonth }).map((_, i) => {
-                    const day = i + 1
-                    const ymd = buildYmd(viewYear, viewMonth, day)
-                    const hasEvents = eventDates.has(ymd)
-                    const isSelected = selectedDate === ymd
-                    const isToday =
-                      day === today.getDate() &&
-                      viewMonth === today.getMonth() &&
-                      viewYear === today.getFullYear()
-
-                    const classes = ['calendar-date', 'calendar-date-button']
-                    if (hasEvents) classes.push('has-events')
-                    if (isSelected) classes.push('is-selected')
-                    if (isToday) classes.push('is-today')
-
-                    return (
-                      <button
-                        key={ymd}
-                        type="button"
-                        className={classes.join(' ')}
-                        onClick={() => handleDayClick(day)}
-                      >
-                        {day}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
+              <Calendar
+                viewYear={viewYear}
+                viewMonth={viewMonth}
+                selectedDate={selectedDate}
+                results={results}
+                prevMonth={prevMonth}
+                nextMonth={nextMonth}
+                handleDayClick={handleDayClick}
+              />
             </div>
           </div>
         </main>
       )}
 
       {isLoggedIn && page === 'saved' && (
-        <main className="dashboard-page">
-          <header className="page-header">
-            <h1>Saved Events</h1>
-            <p>These are the events you saved.</p>
-          </header>
+        <SavedEvents
+          savedEvents={savedEvents}
+          getEventKey={getEventKey}
+          editingEventKey={editingEventKey}
+          editingNote={editingNote}
+          setEditingNote={setEditingNote}
+          saveNote={saveNote}
+          cancelEditing={cancelEditing}
+          startEditing={startEditing}
+          deleteEvent={deleteEvent}
+          setSelectedEventForModal={setSelectedEventForModal}
+        />
+      )}
 
-          <div className="cards-grid">
-            {savedEvents.length === 0 && <p>No saved events yet.</p>}
-
-            {savedEvents.map((event, index) => {
-              const eventKey = getEventKey(event)
-              const isEditing = editingEventKey === eventKey
-
-              return (
-                <EventCard
-                  key={event.external_id || `${event.title}-${index}`}
-                  event={event}
-                >
-                  {!isEditing && event.notes && (
-                    <div className="event-notes">
-                      <strong>Notes:</strong>
-                      <p>{event.notes}</p>
-                    </div>
-                  )}
-
-                  {isEditing && (
-                    <div className="event-notes-editor">
-                      <textarea
-                        value={editingNote}
-                        onChange={(e) => setEditingNote(e.target.value)}
-                        placeholder="Add your notes here..."
-                        rows={3}
-                      />
-                      <div className="note-actions">
-                        <button type="button" onClick={() => saveNote(eventKey)}>
-                          Save Note
-                        </button>
-                        <button type="button" onClick={cancelEditing}>
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {!isEditing && (
-                    <div className="card-actions">
-                      <button type="button" onClick={() => startEditing(event)}>
-                        {event.notes ? 'Edit Notes' : 'Add Notes'}
-                      </button>
-                      <button
-                        type="button"
-                        className="delete-button"
-                        onClick={() => deleteEvent(eventKey)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  )}
-                </EventCard>
-              )
-            })}
-          </div>
-        </main>
-      )
-      }
+      <EventModal
+        open={!!selectedEventForModal}
+        handleClose={() => setSelectedEventForModal(null)}
+        event={selectedEventForModal}
+      />
     </div>
     </ThemeProvider>
   )
