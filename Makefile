@@ -101,13 +101,15 @@ frontend:
 # Runs DB in Docker; Django + Vite run locally in parallel.
 # Requires a Unix-like shell (bash/zsh/WSL) for job-control (&).
 dev:
-	# Start DB
+	# Start DB only (backend + frontend run locally below)
 	$(DOCKER_COMPOSE) up -d db
 	# Kill any existing local servers first to avoid port conflicts
 	-$(KILL_8000)
 	-$(KILL_5173)
-	# start the venv
-	cd backend && $(VENV_ACTIVATE)
+	# Wait for Postgres to be ready before starting Django
+	@echo "Waiting for DB to be ready..."
+	@until $(DOCKER_COMPOSE) exec db pg_isready -U $${DB_USER:-postgres} -d $${DB_NAME:-townpulse_db} >/dev/null 2>&1; do sleep 2; done
+	@echo "DB is ready."
 	# Run backend in background from the ROOT
 	(cd backend && . venv/bin/activate && pip install -r requirements.txt && python3 manage.py runserver) &
 	# Run frontend in foreground
