@@ -29,28 +29,30 @@ endef
 
 
 # ── OS Detection ──────────────────────────────────────────────────────────────
-# Windows users: run make targets inside WSL or Git Bash.
+# Auto-detects macOS vs Linux/WSL and picks the right port-killing tool.
+# Both environments use the same POSIX venv layout (backend/venv/bin/*).
 # The `dev` target uses bash job-control (&) and requires a Unix-like shell.
-UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
+UNAME_S := $(shell uname -s 2>/dev/null || echo Unknown)
+
+# Use bash explicitly so `source`/`&`/`until` behave the same everywhere.
+SHELL := /bin/bash
+
+# python3 exists on macOS and modern Linux/WSL; fall back to python if not.
+PYTHON := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
 
 ifeq ($(UNAME_S),Darwin)
-    KILL_8000    := lsof -ti :8000 | xargs kill -9 2>/dev/null || true
-    KILL_5173    := lsof -ti :5173 | xargs kill -9 2>/dev/null || true
-    VENV_PYTHON  := backend/venv/bin/python
-    VENV_ACTIVATE := . venv/bin/activate
-else ifeq ($(UNAME_S),Windows)
-    $(warning Windows detected — run this Makefile inside WSL or Git Bash for full support.)
-    KILL_8000    := echo "Use WSL or Git Bash to kill port 8000 automatically"
-    KILL_5173    := echo "Use WSL or Git Bash to kill port 5173 automatically"
-    VENV_PYTHON  := backend/venv/Scripts/python
-    VENV_ACTIVATE := . backend/venv/Scripts/activate
+    # macOS: lsof is preinstalled; fuser is not.
+    KILL_PORT = lsof -ti :$(1) 2>/dev/null | xargs kill -9 2>/dev/null || true
 else
-    # Linux / WSL
-    KILL_8000    := fuser -k 8000/tcp 2>/dev/null || true
-    KILL_5173    := fuser -k 5173/tcp 2>/dev/null || true
-    VENV_PYTHON  := backend/venv/bin/python
-    VENV_ACTIVATE := . venv/bin/activate
+    # Linux / WSL: prefer fuser (always present), fall back to lsof.
+    KILL_PORT = (command -v fuser >/dev/null 2>&1 && fuser -k $(1)/tcp 2>/dev/null) || (command -v lsof >/dev/null 2>&1 && lsof -ti :$(1) 2>/dev/null | xargs -r kill -9 2>/dev/null) || true
 endif
+
+KILL_8000 := $(call KILL_PORT,8000)
+KILL_5173 := $(call KILL_PORT,5173)
+
+VENV_PYTHON   := backend/venv/bin/python
+VENV_ACTIVATE := . venv/bin/activate
 
 # ── Docker Compose ────────────────────────────────────────────────────────────
 # Prefer Compose V2 plugin (`docker compose`); fall back to standalone V1.
@@ -79,8 +81,8 @@ clean-start:
 	$(DOCKER_COMPOSE) down
 
 # ── Django ────────────────────────────────────────────────────────────────────
-migrate:
-	cd backend && $(VENV_ACTIVATE) && python manage.py makemigrations 
+migrate: backend/venv
+	cd backend && $(VENV_ACTIVATE) && python manage.py makemigrations
 	cd backend && $(VENV_ACTIVATE) && python manage.py migrate
 
 superuser:
@@ -90,26 +92,42 @@ shell:
 	$(DOCKER_COMPOSE) exec backend python manage.py shell
 
 # ── Local dev servers ─────────────────────────────────────────────────────────
-backend:
+# Create the Python venv if it doesn't exist yet (cross-platform safe).
+backend/venv:
+	@echo "Creating Python venv at backend/venv..."
+	$(PYTHON) -m venv backend/venv
+
+# Install npm deps if frontend/node_modules is missing.
+frontend/node_modules:
+	cd frontend && npm install
+
+backend: backend/venv
 	$(DOCKER_COMPOSE) up -d db
 	cd backend && $(VENV_ACTIVATE) && pip install -r requirements.txt
 	cd backend && $(VENV_ACTIVATE) && python manage.py runserver
 
-frontend:
+frontend: frontend/node_modules
 	cd frontend && npm run dev
 
 # Runs DB in Docker; Django + Vite run locally in parallel.
 # Requires a Unix-like shell (bash/zsh/WSL) for job-control (&).
-dev:
-	# Start DB
+dev: backend/venv frontend/node_modules
+	# Start DB only (backend + frontend run locally below)
 	$(DOCKER_COMPOSE) up -d db
 	# Kill any existing local servers first to avoid port conflicts
 	-$(KILL_8000)
 	-$(KILL_5173)
-	# start the venv
-	cd backend && $(VENV_ACTIVATE)
+# Wait for Postgres to accept connections (max 30s); avoids docker exec hang on WSL.
+# Uses bash's /dev/tcp pseudo-device to attempt a raw TCP connect to localhost:5432
+# without shelling into the container. Retries every 2s, up to 15 times (30s max).
+	@echo "Waiting for DB to be ready..."
+	@i=0; while [ $$i -lt 15 ]; do \
+		(echo > /dev/tcp/localhost/5432) >/dev/null 2>&1 && break; \
+		i=$$((i+1)); sleep 2; \
+	done
+	@echo "DB is ready."
 	# Run backend in background from the ROOT
-	(cd backend && . venv/bin/activate && pip install -r requirements.txt && python3 manage.py runserver) &
+	(cd backend && $(VENV_ACTIVATE) && pip install -r requirements.txt && python manage.py runserver) &
 	# Run frontend in foreground
 	cd frontend && npm run dev
 
@@ -118,10 +136,10 @@ logs:
 	$(DOCKER_COMPOSE) logs -f
 
 db-check:
-	$(DOCKER_COMPOSE) exec db pg_isready -U $${DB_USER:-postgres} -d townpulse_db
+	$(DOCKER_COMPOSE) exec -T db pg_isready -U $${DB_USER:-postgres} -d $${DB_NAME:-townpulse_db}
 
 # Freeze from local venv (use after `pip install` in the venv)
-freeze-local:
+freeze-local: backend/venv
 	$(VENV_PYTHON) -m pip freeze > backend/requirements.txt
 
 # Freeze from the running backend container
