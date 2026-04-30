@@ -117,9 +117,14 @@ dev: backend/venv frontend/node_modules
 	# Kill any existing local servers first to avoid port conflicts
 	-$(KILL_8000)
 	-$(KILL_5173)
-	# Wait for Postgres to be ready before starting Django
+# Wait for Postgres to accept connections (max 30s); avoids docker exec hang on WSL.
+# Uses bash's /dev/tcp pseudo-device to attempt a raw TCP connect to localhost:5432
+# without shelling into the container. Retries every 2s, up to 15 times (30s max).
 	@echo "Waiting for DB to be ready..."
-	@until $(DOCKER_COMPOSE) exec -T db pg_isready -U $${DB_USER:-postgres} -d $${DB_NAME:-townpulse_db} >/dev/null 2>&1; do sleep 2; done
+	@i=0; while [ $$i -lt 15 ]; do \
+		(echo > /dev/tcp/localhost/5432) >/dev/null 2>&1 && break; \
+		i=$$((i+1)); sleep 2; \
+	done
 	@echo "DB is ready."
 	# Run backend in background from the ROOT
 	(cd backend && $(VENV_ACTIVATE) && pip install -r requirements.txt && python manage.py runserver) &
