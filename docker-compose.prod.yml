@@ -11,13 +11,13 @@
 
 services:
   db:
-    ports: []
+    ports: !reset []
     restart: unless-stopped
 
   backend:
-    volumes: []
+    volumes: !reset []
     command: gunicorn --bind 0.0.0.0:8000 --workers 3 --access-logfile - town_pulse.wsgi:application
-    ports: []
+    ports: !reset []
     restart: unless-stopped
 
   frontend:
