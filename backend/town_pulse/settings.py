@@ -27,12 +27,40 @@ load_dotenv(BASE_DIR.parent / '.env')
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-yq7oo#+1^d55l_*pe4rfi#$7&h4+!phzn#9do$fi*2dfha#a*q'
+SECRET_KEY = os.environ.get(
+    'SECRET_KEY',
+    'django-insecure-yq7oo#+1^d55l_*pe4rfi#$7&h4+!phzn#9do$fi*2dfha#a*q',
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    h.strip()
+    for h in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+    if h.strip()
+]
+
+CORS_ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.environ.get(
+        'CORS_ALLOWED_ORIGINS',
+        'http://localhost,http://localhost:80,http://localhost:5173,http://127.0.0.1:5173',
+    ).split(',')
+    if o.strip()
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    o.strip()
+    for o in os.environ.get(
+        'CSRF_TRUSTED_ORIGINS',
+        'http://localhost,http://localhost:80,http://127.0.0.1',
+    ).split(',')
+    if o.strip()
+]
+
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 
 # Application definition
@@ -131,6 +159,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Google Sign-In: Client ID from the Google Cloud Console OAuth 2.0 credential.
 # Required for /api/auth/google/ to verify ID tokens.

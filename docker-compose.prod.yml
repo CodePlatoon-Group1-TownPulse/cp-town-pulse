@@ -1,0 +1,24 @@
+# Production overrides. Use with the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Differences from dev:
+#   - Postgres is not exposed to the host (db.ports cleared).
+#   - Backend has no source bind-mount (volumes cleared) and runs gunicorn
+#     instead of manage.py runserver.
+#   - Backend port 8000 is not published; the frontend nginx proxies to it on
+#     the internal docker network.
+#   - All long-running services restart on failure.
+
+services:
+  db:
+    ports: []
+    restart: unless-stopped
+
+  backend:
+    volumes: []
+    command: gunicorn --bind 0.0.0.0:8000 --workers 3 --access-logfile - town_pulse.wsgi:application
+    ports: []
+    restart: unless-stopped
+
+  frontend:
+    restart: unless-stopped
