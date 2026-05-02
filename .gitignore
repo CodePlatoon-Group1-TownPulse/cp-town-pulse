@@ -216,3 +216,6 @@ __marimo__/
 
 # IDE
 .vscode/
+
+# Local agent / editor settings
+.claude/
